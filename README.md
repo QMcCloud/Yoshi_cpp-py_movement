@@ -1,1 +1,3 @@
-# Cisc367_YOSHI_HW2
+we need to decide on what language to use
+
+C++ or Python?
