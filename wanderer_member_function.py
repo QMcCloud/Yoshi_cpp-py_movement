@@ -63,6 +63,7 @@ class Wanderer(Node):
             HazardDetection.CLIFF: self.handle_bump,
             HazardDetection.WHEEL_DROP : self.stop,
             HazardDetection.STALL : self.handle_bump,
+            HazardDetection.OBJECT_PROXIMITY : self.handle_bump
         }
         for hazard in msg.detections:
             action = actions.get(hazard, None)
