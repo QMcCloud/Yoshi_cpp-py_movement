@@ -17,7 +17,7 @@ from rclpy.node import Node
 
 from std_msgs.msg import String
 
-from irobot_create_msgs.msg import HazardDetectionVector
+from irobot_create_msgs.msg import HazardDetection, HazardDetectionVector
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Vector3
 
@@ -32,29 +32,91 @@ class Wanderer(Node):
             self.hazard_callback,
             10)
         self.publisher_ = self.create_publisher(Twist, '/yoshi/cmd_vel', 10)
-        #timer_period = 0.5  # seconds
-        #self.timer = self.create_timer(timer_period, self.timer_callback)
-        self.i = 0
+        timer_period = 0.5  # seconds
+        self.timer = self.create_timer(timer_period, self.pub_cmd_vel_callback)
         
+        self.twist = Twist()
+        self.twist.angular = Vector3()
+        self.twist.linear = Vector3()
+
+        self.twist.angular.x = 0
+        self.twist.angular.y = 0
+        self.twist.angular.z = 0
+        self.twist.linear.x = 0
+        self.twist.linear.y = 0
+        self.twist.linear.z = 0
+
         self.subscription  # prevent unused variable warning
+    
+    def pub_cmd_vel_callback(self):
+        self.publisher_.publish(self.twist)
+        self.get_logger().info('Publishing: "%s"' % self.twist)
+    
+    def do_once(self, func):
+        if(func) : func()
+        self.do_once_timer.destroy()
 
-    def hazard_callback(self, msg):
-        self.get_logger().info('I heard: "%s"' % msg.data)
+    def hazard_callback(self, msg : HazardDetectionVector):
+        actions = {
+            HazardDetection.BUMP: self.handle_bump,
+            HazardDetection.BACKUP_LIMIT : self.handle_backup_limit,
+            HazardDetection.CLIFF: self.handle_bump,
+            HazardDetection.WHEEL_DROP : self.stop,
+            HazardDetection.STALL : self.handle_bump,
+        }
+        for hazard in msg.detections:
+            action = actions.get(hazard, None)
+            if (action):
+                action()
+            self.get_logger().info('I heard: "%s"' % hazard)
+    
+    def stop(self):
+        self.twist.angular.x = 0.0
+        self.twist.angular.y = 0.0
+        self.twist.angular.z = 0.0
+        self.twist.linear.x = 0.0
+        self.twist.linear.y = 0.0
+        self.twist.linear.z = 0.0
+        self.publisher_.publish(self.twist)
+    
+    def reverse(self):
+        self.twist.angular.x = 0.0
+        self.twist.angular.y = 0.0
+        self.twist.angular.z = 0.0
+        self.twist.linear.x = -0.01
+        self.twist.linear.y = 0.0
+        self.twist.linear.z = 0.0
+        self.publisher_.publish(self.twist)
+    
+    def forward(self):
+        self.twist.angular.x = 0.0
+        self.twist.angular.y = 0.0
+        self.twist.angular.z = 0.0
+        self.twist.linear.x = 0.1
+        self.twist.linear.y = 0.0
+        self.twist.linear.z = 0.0
+        self.publisher_.publish(self.twist)
+    
+    def turn(self):
+        self.twist.angular.x = 0.0
+        self.twist.angular.y = 0.0
+        self.twist.angular.z = 0.1
+        self.twist.linear.x = 0.0
+        self.twist.linear.y = 0.0
+        self.twist.linear.z = 0.0
+        self.publisher_.publish(self.twist)
 
-    def stop_callback(self):
-        msg = Twist()
-        msg.angular = Vector3()
-        msg.linear = Vector3()
-
-        msg.angular.x = 0
-        msg.angular.y = 0
-        msg.angular.z = 0
-        msg.linear.x = 0
-        msg.linear.y = 0
-        msg.linear.z = 0
-
-        self.publisher_.publish(msg)
-        self.get_logger().info('Publishing: "%s"' % msg.data)
+    def handle_bump(self):
+        self.stop()
+        if self.do_once_timer : self.do_once_timer.destroy()
+        self.do_once_timer = self.create_timer(1, lambda : self.do_once(self.handle_backup_limit))
+        self.reverse()
+    
+    def handle_backup_limit(self):
+        self.stop()
+        if self.do_once_timer : self.do_once_timer.destroy()
+        self.do_once_timer = self.create_timer(1, lambda : self.do_once(self.forward))
+        self.turn()
 
 
 def main(args=None):
