@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from random import choice, uniform
 import rclpy
 from rclpy.node import Node
 
@@ -57,6 +58,7 @@ class Wanderer(Node):
         self.do_once_timer.destroy()
 
     def hazard_callback(self, msg : HazardDetectionVector):
+        self.get_logger().info('hazard!: "%i"' % len(msg.detections))
         actions = {
             HazardDetection.BUMP: self.handle_bump,
             HazardDetection.BACKUP_LIMIT : self.handle_backup_limit,
@@ -101,7 +103,7 @@ class Wanderer(Node):
     def turn(self):
         self.twist.angular.x = 0.0
         self.twist.angular.y = 0.0
-        self.twist.angular.z = 0.1
+        self.twist.angular.z = choice([-1.0, 1.0])
         self.twist.linear.x = 0.0
         self.twist.linear.y = 0.0
         self.twist.linear.z = 0.0
@@ -116,7 +118,7 @@ class Wanderer(Node):
     def handle_backup_limit(self):
         self.stop()
         if self.do_once_timer : self.do_once_timer.destroy()
-        self.do_once_timer = self.create_timer(1, lambda : self.do_once(self.forward))
+        self.do_once_timer = self.create_timer(uniform(2.0943951, 4.1887902), lambda : self.do_once(self.forward))
         self.turn()
 
 
