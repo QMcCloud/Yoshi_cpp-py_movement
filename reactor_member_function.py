@@ -45,41 +45,39 @@ class Wanderer(Node):
         self.timer = self.create_timer(timer_period, self.pub_cmd_vel_callback)
         
         self.twist = Twist()
-        self.twist.angular = Vector3()
-        self.twist.linear = Vector3()
 
-        self.twist.angular.x = 0.0
-        self.twist.angular.y = 0.0
-        self.twist.angular.z = 0.0
-        self.twist.linear.x = 0.0
-        self.twist.linear.y = 0.0
-        self.twist.linear.z = 0.0
+        self.max_turn_rate = 2.0 # 2.0 rad/s
+        self.max_linear_rate = 0.2 # 0.2 m/s
 
     
     def pub_cmd_vel_callback(self):
         self.publisher_.publish(self.twist)
         #self.get_logger().info('Publishing: "%s"' % self.twist)
-    
-    def remap(self, x : IrIntensity):
-        return (2 / (1+ np.exp(-x.value / 512.0))) - 1
 
     def ir_callback(self, msg : IrIntensityVector):
-        values = list(map(self.remap, msg.readings ))
+        values = list(map(lambda m: m.value, msg.readings ))
 
-        turnrate = (-1.0 * sum(values[:3])) + sum(values[-1:-4:-1])
-        forward_rate = 0.0
-        if(turnrate**2 < 9 ):
-            forward_rate = 0.025 * math.sqrt(9 - turnrate**2) 
-        
+        # turn rate = Left - Right
+        # values range +- 3 * 4096
+        turn_rate = (-1.0 * sum(values[:3])) + sum(values[-1:-4:-1])
+
+        # linear sensitivity scaling 
+        # values range +- 3 * 4096 / 512
+        turn_rate /= 512.0 
+
+        # nonlinear sigmoid normalization
+        # values range +- 1
+        turn_rate = (1 / (1 + np.exp(-turn_rate))) 
+
+        # make turn rate and forward rate froma  2d unit vector
+        # values range +- 1
+        forward_rate = math.sqrt(1 - turn_rate**2)
+
+        self.twist.angular.z = self.max_turn_rate * turn_rate
+        self.twist.linear.x = self.max_linear_rate * forward_rate
 
         self.get_logger().info('IR: "%s",' % values)
-        self.get_logger().info('TR: "%s"' % turnrate)
-        self.get_logger().info('FR: "%s"' % forward_rate)
-
-        self.twist.angular.z = 2 * turnrate
-        self.twist.linear.x = forward_rate
-
-        pass 
+        self.get_logger().info('TWIST: "%s"' % self.twist)
     
 
 
