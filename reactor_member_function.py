@@ -15,6 +15,7 @@
 from random import choice, uniform
 import sys
 import math
+import numpy as np
 
 import rclpy
 from rclpy import qos
@@ -59,13 +60,16 @@ class Wanderer(Node):
         self.publisher_.publish(self.twist)
         #self.get_logger().info('Publishing: "%s"' % self.twist)
     
+    def remap(self, x : IrIntensity):
+        return (2 / (1+ np.exp(-x.value / 512.0))) - 1
+
     def ir_callback(self, msg : IrIntensityVector):
-        values = list(map(lambda r : r.value/ 4096.0, msg.readings ))
+        values = list(map(self.remap, msg.readings ))
 
         turnrate = (-1.0 * sum(values[:3])) + sum(values[-1:-4:-1])
         forward_rate = 0.0
-        if(turnrate**2 < 4 ):
-            forward_rate = 0.05 * math.sqrt(4 - turnrate**2) 
+        if(turnrate**2 < 9 ):
+            forward_rate = 0.025 * math.sqrt(9 - turnrate**2) 
         
 
         self.get_logger().info('IR: "%s",' % values)
