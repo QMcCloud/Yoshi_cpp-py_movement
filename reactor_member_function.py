@@ -14,6 +14,7 @@
 
 from random import choice, uniform
 import sys
+import math
 
 import rclpy
 from rclpy import qos
@@ -53,10 +54,6 @@ class Wanderer(Node):
         self.twist.linear.y = 0.0
         self.twist.linear.z = 0.0
 
-        self.do_once_timer = None
-
-        self.prev_hazard = []
-
     
     def pub_cmd_vel_callback(self):
         self.publisher_.publish(self.twist)
@@ -65,9 +62,19 @@ class Wanderer(Node):
     def ir_callback(self, msg : IrIntensityVector):
         values = list(map(lambda r : r.value/ 4096.0, msg.readings ))
 
-        turnrate = sum(-1.0 * values[:3]) * sum(1.0 * values[-1:-3])
+        turnrate = (-1.0 * sum(values[:3])) + sum(values[-1:-4:-1])
+        forward_rate = 0.0
+        if(turnrate**2 < 4 ):
+            forward_rate = 0.05 * math.sqrt(4 - turnrate**2) 
+        
 
-        self.get_logger().info('IR: "%s",\t TR: "%s"' % values, turnrate)
+        self.get_logger().info('IR: "%s",' % values)
+        self.get_logger().info('TR: "%s"' % turnrate)
+        self.get_logger().info('FR: "%s"' % forward_rate)
+
+        self.twist.angular.z = 2 * turnrate
+        self.twist.linear.x = forward_rate
+
         pass 
     
 
