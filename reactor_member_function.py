@@ -63,7 +63,7 @@ class Wanderer(Node):
         #self.get_logger().info('Publishing: "%s"' % self.twist)
     
     def ir_callback(self, msg : IrIntensityVector):
-        values = list(map(lambda r : r.value / 4096.0))
+        values = list(map(lambda r : r.value/ 4096.0, msg.readings ))
 
         turnrate = sum(-1.0 * values[:3]) * sum(1.0 * values[-1:-3])
 
