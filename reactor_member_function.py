@@ -12,51 +12,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+import numpy as np
+
 import rclpy
+from rclpy import qos
 from rclpy.node import Node
 
-from std_msgs.msg import String
-
-from irobot_create_msgs.msg import HazardDetectionVector
+from irobot_create_msgs.msg import IrIntensityVector
 from geometry_msgs.msg import Twist
-from geometry_msgs.msg import Vector
 
 
 class Reactor(Node):
 
     def __init__(self):
-        super().__init__('reactor')
-
+        super().__init__('Reactor')
         self.subscription = self.create_subscription(
-            HazardDetectionVector,
-            "/yoshi/hazard_detection",
-            self.hazard_callback,
-            10)
-
-        self.publisher_ = self.create_publisher(Twist, '/yoshi/cmd_vel', 10)
-        #timer_period = 0.5  # seconds
-        #self.timer = self.create_timer(timer_period, self.timer_callback)
-        self.i = 0
-        
+            IrIntensityVector,
+            "/yoshi/ir_intensity",
+            self.ir_callback,
+            qos.qos_profile_sensor_data
+            )
         self.subscription  # prevent unused variable warning
+        self.publisher_ = self.create_publisher(Twist, '/yoshi/cmd_vel', 10)
 
-    def hazard_callback(self, msg):
-        self.get_logger().info('I heard: "%s"' % msg.data)
+        timer_period = 0.25  # seconds
+        self.timer = self.create_timer(timer_period, self.pub_cmd_vel_callback)
+        
+        self.twist = Twist()
 
-    def stop_callback(self):
-        msg = Twist()
-        msg.angular = Vector3()
-        msg.linear = Vector3()
+        self.max_turn_rate = 2.0 # 2.0 rad/s
+        self.max_linear_rate = 0.1 # 0.2 m/s
 
-        msg.angular.x = 0
-        msg.angular.y = 0
-        msg.angular.z = 0
-        msg.linear.x = 0
-        msg.linear.y = 0
-        msg.linear.z = 0
+    
+    def pub_cmd_vel_callback(self):
+        self.publisher_.publish(self.twist)
+        #self.get_logger().info('Publishing: "%s"' % self.twist)
 
-        self.publisher_.publish(msg)
-        self.get_logger().info('Publishing: "%s"' % msg.data)
+    def ir_callback(self, msg : IrIntensityVector):
+        values = list(map(lambda m: m.value, msg.readings ))
+
+        # turn rate = Left - Right
+        # values range +- 3 * 4096 = +- 12288
+        turn_rate = 0
+        left_intensity = sum(values[:3])
+        right_intensity = sum(values[-1:-4:-1])
+        if (left_intensity > right_intensity):
+            turn_rate = -1.0 * left_intensity
+        else:
+            turn_rate = right_intensity
+
+        # linear sensitivity scaling 
+        # values range +- 12288 / 128
+        turn_rate /= 128.0 
+
+        # nonlinear sigmoid normalization
+        # values range +- 1
+        turn_rate = (2 / (1 + np.exp(-turn_rate))) - 1
+
+        # make turn rate and forward rate froma  2d unit vector
+        # values range +- 1
+        forward_rate = math.sqrt(1 - turn_rate**2)
+
+        self.twist.angular.z = self.max_turn_rate * turn_rate
+        self.twist.linear.x = self.max_linear_rate * forward_rate
+
+        self.get_logger().info('IR: "%s",' % values)
+        self.get_logger().info('TWIST: "%s"' % self.twist)
+    
+
 
 
 def main(args=None):
