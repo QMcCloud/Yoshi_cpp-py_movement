@@ -23,10 +23,10 @@ from irobot_create_msgs.msg import IrIntensityVector
 from geometry_msgs.msg import Twist
 
 
-class reactor(Node):
+class Reactor(Node):
 
     def __init__(self):
-        super().__init__('reactor')
+        super().__init__('Reactor')
         self.subscription = self.create_subscription(
             IrIntensityVector,
             "/yoshi/ir_intensity",
@@ -42,7 +42,7 @@ class reactor(Node):
         self.twist = Twist()
 
         self.max_turn_rate = 2.0 # 2.0 rad/s
-        self.max_linear_rate = 0.2 # 0.2 m/s
+        self.max_linear_rate = 0.1 # 0.2 m/s
 
     
     def pub_cmd_vel_callback(self):
@@ -55,7 +55,7 @@ class reactor(Node):
         # turn rate = Left - Right
         # values range +- 3 * 4096 = +- 12288
         turn_rate = 0
-        left_intensity = sum(values[0:3:1])
+        left_intensity = sum(values[:3])
         right_intensity = sum(values[-1:-4:-1])
         if (left_intensity > right_intensity):
             turn_rate = -1.0 * left_intensity
@@ -63,12 +63,12 @@ class reactor(Node):
             turn_rate = right_intensity
 
         # linear sensitivity scaling 
-        # values range +- 12288 / 512 = +- 24
-        turn_rate /= 512.0 
+        # values range +- 12288 / 128
+        turn_rate /= 128.0 
 
         # nonlinear sigmoid normalization
         # values range +- 1
-        turn_rate = (1 / (1 + np.exp(-turn_rate))) 
+        turn_rate = (2 / (1 + np.exp(-turn_rate))) - 1
 
         # make turn rate and forward rate froma  2d unit vector
         # values range +- 1
@@ -85,7 +85,7 @@ class reactor(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    reactor = reactor()
+    reactor = Reactor()
 
     rclpy.spin(reactor)
 
