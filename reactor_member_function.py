@@ -42,18 +42,16 @@ class Reactor(Node):
         self.twist = Twist()
 
         self.max_turn_rate = 2.0 # 2.0 rad/s
-        self.max_linear_rate = 0.1 # 0.2 m/s
+        self.max_linear_rate = 0.1 # 0.1 m/s
 
     
     def pub_cmd_vel_callback(self):
         self.publisher_.publish(self.twist)
-        #self.get_logger().info('Publishing: "%s"' % self.twist)
 
     def ir_callback(self, msg : IrIntensityVector):
         values = list(map(lambda m: m.value, msg.readings ))
 
-        # turn rate = Left - Right
-        # values range +- 3 * 4096 = +- 12288
+        # turn rate = -Left or Right, whichever is greater
         turn_rate = 0
         left_intensity = sum(values[:3])
         right_intensity = sum(values[-1:-4:-1])
@@ -63,15 +61,12 @@ class Reactor(Node):
             turn_rate = right_intensity
 
         # linear sensitivity scaling 
-        # values range +- 12288 / 128
         turn_rate /= 128.0 
 
-        # nonlinear sigmoid normalization
-        # values range +- 1
+        # nonlinear sigmoid squish
         turn_rate = (2 / (1 + np.exp(-turn_rate))) - 1
 
         # make turn rate and forward rate froma  2d unit vector
-        # values range +- 1
         forward_rate = math.sqrt(1 - turn_rate**2)
 
         self.twist.angular.z = self.max_turn_rate * turn_rate
