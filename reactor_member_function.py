@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from random import choice, uniform
-import sys
 import math
 import numpy as np
 
@@ -21,17 +19,14 @@ import rclpy
 from rclpy import qos
 from rclpy.node import Node
 
-from std_msgs.msg import String
-
-from irobot_create_msgs.msg import IrIntensity, IrIntensityVector
+from irobot_create_msgs.msg import IrIntensityVector
 from geometry_msgs.msg import Twist
-from geometry_msgs.msg import Vector3
 
 
-class Wanderer(Node):
+class reactor(Node):
 
     def __init__(self):
-        super().__init__('wanderer')
+        super().__init__('reactor')
         self.subscription = self.create_subscription(
             IrIntensityVector,
             "/yoshi/ir_intensity",
@@ -58,11 +53,17 @@ class Wanderer(Node):
         values = list(map(lambda m: m.value, msg.readings ))
 
         # turn rate = Left - Right
-        # values range +- 3 * 4096
-        turn_rate = (-1.0 * sum(values[:3])) + sum(values[-1:-4:-1])
+        # values range +- 3 * 4096 = +- 12288
+        turn_rate = 0
+        left_intensity = sum(values[0:3:1])
+        right_intensity = sum(values[-1:-4:-1])
+        if (left_intensity > right_intensity):
+            turn_rate = -1.0 * left_intensity
+        else:
+            turn_rate = right_intensity
 
         # linear sensitivity scaling 
-        # values range +- 3 * 4096 / 512
+        # values range +- 12288 / 512 = +- 24
         turn_rate /= 512.0 
 
         # nonlinear sigmoid normalization
@@ -84,14 +85,14 @@ class Wanderer(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    wanderer = Wanderer()
+    reactor = reactor()
 
-    rclpy.spin(wanderer)
+    rclpy.spin(reactor)
 
     # Destroy the node explicitly
     # (optional - otherwise it will be done automatically
     # when the garbage collector destroys the node object)
-    wanderer.destroy_node()
+    reactor.destroy_node()
     rclpy.shutdown()
 
 
